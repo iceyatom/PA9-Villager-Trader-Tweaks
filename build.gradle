@@ -1,7 +1,7 @@
 plugins {
-    // 26.1 uses the new non-remapping plugin. Minecraft is no longer obfuscated,
-    // so there is no Yarn remap step. Loom 1.17 is required.
-    id 'net.fabricmc.fabric-loom' version '1.17.21'
+    // Minecraft 1.21.11 and older are obfuscated, so this backport uses the
+    // remapping Loom plugin with Mojang's official mappings.
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.21'
     id 'java'
 }
 
@@ -12,10 +12,12 @@ base {
     archivesName = project.archives_base_name
 }
 
-// Minecraft 26.1 requires Java 25 for the Gradle JVM / toolchain.
+// Java level required by the target Minecraft version (see gradle.properties).
+def targetJava = (project.java_version as String) as int
+
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(targetJava)
     }
     withSourcesJar()
 }
@@ -28,8 +30,7 @@ repositories {
 loom {
     splitEnvironmentSourceSets()
 
-    // Class tweaker (formerly access widener). The Loom property kept its old
-    // name for backwards compatibility but accepts the .classtweaker file.
+    // Access widener (the file keeps its .classtweaker name from the 26.x build).
     accessWidenerPath = file("src/client/resources/trade-reorder.classtweaker")
 
     mods {
@@ -41,18 +42,14 @@ loom {
 }
 
 dependencies {
-    // With the unobfuscated Loom plugin, Minecraft is NOT remapped.
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
 
-    // 26.1 is unobfuscated — NO mappings dependency is declared at all.
-    // Loom 1.17 handles this automatically; adding one causes a build error.
+    // Obfuscated Minecraft: use Mojang's official names so the source keeps the
+    // same identifiers as the 26.x code.
+    mappings loom.officialMojangMappings()
 
-    // The non-remapping fabric-loom plugin does NOT provide 'modImplementation'.
-    // Per the 26.1 migration, use the standard 'implementation' configuration.
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-    // Same here: plain 'implementation', not 'modImplementation'.
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
 processResources {
@@ -63,14 +60,23 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 25
+    it.options.release = targetJava
 }
 
-// 26.1: 'jar' is the final artifact (no remapJar step anymore).
+// The remapped jar is the release artifact; the plain (named) jar is dev-only.
 jar {
+    archiveClassifier = "dev"
     from("LICENSE") {
         rename { "${it}_${project.archives_base_name}" }
     }
+}
+
+remapJar {
+    archiveFileName = "${project.archives_base_name}-${project.mod_version}.jar"
+}
+
+remapSourcesJar {
+    archiveFileName = "${project.archives_base_name}-${project.mod_version}-sources.jar"
 }
 
 // Load the packaged mod through Fabric/Mixin without opening a game window.
@@ -88,7 +94,7 @@ tasks.register('mixinSmokeTest', JavaExec) {
     classpath += files(tasks.jar.archiveFile)
     mainClass = 'net.fabricmc.loader.impl.launch.knot.KnotClient'
     javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(targetJava)
     }
     systemProperty 'fabric.development', 'true'
     workingDir = layout.buildDirectory.dir('mixin-smoke-run').get().asFile
