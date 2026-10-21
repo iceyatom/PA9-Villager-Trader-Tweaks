@@ -7,8 +7,8 @@ import com.example.tradereorder.network.ServerboundCycleTradesPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.resources.Identifier;
-import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.trading.Merchant;
 import org.slf4j.Logger;
@@ -20,10 +20,10 @@ public class TradeReorder implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        PayloadTypeRegistry.clientboundPlay().register(
+        PayloadTypeRegistry.playS2C().register(
                 ClientboundFutureTradesPayload.PACKET_ID,
                 ClientboundFutureTradesPayload.PACKET_CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(
+        PayloadTypeRegistry.playC2S().register(
                 ServerboundCycleTradesPayload.PACKET_ID,
                 ServerboundCycleTradesPayload.PACKET_CODEC);
 
@@ -41,7 +41,7 @@ public class TradeReorder implements ModInitializer {
         LOGGER.info("[Trade Reorder] initialized");
     }
 
-    public static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(MOD_ID, path);
+    public static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
     }
 }

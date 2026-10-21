@@ -9,4 +9,10 @@ pluginManagement {
     }
 }
 
+// Lets Gradle download the Java toolchain this Minecraft version needs if it
+// isn't installed (see java_version in gradle.properties).
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'trade-reorder'
