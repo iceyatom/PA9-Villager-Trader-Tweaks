@@ -20,10 +20,10 @@ public class TradeReorder implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        PayloadTypeRegistry.clientboundPlay().register(
+        PayloadTypeRegistry.playS2C().register(
                 ClientboundFutureTradesPayload.PACKET_ID,
                 ClientboundFutureTradesPayload.PACKET_CODEC);
-        PayloadTypeRegistry.serverboundPlay().register(
+        PayloadTypeRegistry.playC2S().register(
                 ServerboundCycleTradesPayload.PACKET_ID,
                 ServerboundCycleTradesPayload.PACKET_CODEC);
 

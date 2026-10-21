@@ -15,7 +15,7 @@ public class TradeReorderClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(
                 ClientboundFutureTradesPayload.PACKET_ID,
                 (payload, context) -> {
-                    if (!(Minecraft.getInstance().gui.screen() instanceof MerchantScreen screen)) {
+                    if (!(Minecraft.getInstance().screen instanceof MerchantScreen screen)) {
                         return;
                     }
                     ClientMerchantMenuDuck.of(screen.getMenu())
