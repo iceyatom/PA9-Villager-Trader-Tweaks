@@ -104,8 +104,8 @@ public final class TradeKeys {
         IntegratedServer sp = mc.getSingleplayerServer();
         if (sp != null) {
             try {
-                java.nio.file.Path dir = sp.getServerDirectory();
-                java.nio.file.Path name = dir == null ? null : dir.getFileName();
+                java.io.File dir = sp.getServerDirectory();   // a File before 1.20.5
+                java.nio.file.Path name = dir == null ? null : dir.toPath().getFileName();
                 if (name != null) {
                     return "sp:" + name;
                 }

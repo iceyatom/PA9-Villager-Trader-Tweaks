@@ -1,23 +1,27 @@
 package com.example.tradereorder.mixin;
 
+import com.example.tradereorder.TradeReorder;
 import com.example.tradereorder.ducks.VillagerFutureTradesDuck;
 import com.example.tradereorder.network.ClientboundFutureTradesPayload;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.resources.ResourceKey;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ReputationEventHandler;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.npc.villager.AbstractVillager;
-import net.minecraft.world.entity.npc.villager.Villager;
-import net.minecraft.world.entity.npc.villager.VillagerData;
-import net.minecraft.world.entity.npc.villager.VillagerDataHolder;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.entity.npc.AbstractVillager;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerData;
+import net.minecraft.world.entity.npc.VillagerDataHolder;
+import net.minecraft.world.entity.npc.VillagerTrades;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.trading.MerchantOffers;
-import net.minecraft.world.item.trading.TradeSet;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -37,8 +41,10 @@ public abstract class VillagerMixin extends AbstractVillager
 
     @Shadow public abstract int getVillagerXp();
 
-    // In 26.3, updating special prices also refreshes the open merchant menu
-    // and sends its offers to the trading player.
+    @Shadow private void resetSpecialPrices() {
+        throw new AssertionError("shadow");
+    }
+
     @Shadow private void updateSpecialPrices(Player player) {
         throw new AssertionError("shadow");
     }
@@ -51,24 +57,31 @@ public abstract class VillagerMixin extends AbstractVillager
         super(entityType, level);
     }
 
+    // Before 1.21.6 there is no ValueOutput/ValueInput: encode with the codec into
+    // the entity's CompoundTag, the same way vanilla stores its own "Offers".
     @Inject(method = "addAdditionalSaveData", at = @At("HEAD"))
-    private void tradeReorder$saveFutureTrades(ValueOutput output, CallbackInfo ci) {
+    private void tradeReorder$saveFutureTrades(CompoundTag output, CallbackInfo ci) {
         if (tradeReorder$futureOffers != null && !tradeReorder$futureOffers.isEmpty()) {
-            output.store(TRADE_REORDER_FUTURE_OFFERS,
-                    MerchantOffers.CODEC.listOf(),
-                    tradeReorder$futureOffers);
+            MerchantOffers.CODEC.listOf()
+                    .encodeStart(this.registryAccess().createSerializationContext(NbtOps.INSTANCE),
+                            tradeReorder$futureOffers)
+                    .resultOrPartial(TradeReorder.LOGGER::error)
+                    .ifPresent(tag -> output.put(TRADE_REORDER_FUTURE_OFFERS, tag));
         }
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
-    private void tradeReorder$readFutureTrades(ValueInput input, CallbackInfo ci) {
-        Optional<List<MerchantOffers>> saved =
-                input.read(TRADE_REORDER_FUTURE_OFFERS, MerchantOffers.CODEC.listOf());
+    private void tradeReorder$readFutureTrades(CompoundTag input, CallbackInfo ci) {
+        Tag tag = input.get(TRADE_REORDER_FUTURE_OFFERS);
+        Optional<List<MerchantOffers>> saved = tag == null ? Optional.empty()
+                : MerchantOffers.CODEC.listOf()
+                        .parse(this.registryAccess().createSerializationContext(NbtOps.INSTANCE), tag)
+                        .resultOrPartial(TradeReorder.LOGGER::error);
         tradeReorder$futureOffers = saved.map(ArrayList::new).orElse(null);
     }
 
     @Inject(method = "updateTrades", at = @At("HEAD"), cancellable = true)
-    private void tradeReorder$useStoredFutureTradeSet(ServerLevel level, CallbackInfo ci) {
+    private void tradeReorder$useStoredFutureTradeSet(CallbackInfo ci) {
         if (this.offers == null || this.offers.isEmpty()) {
             tradeReorder$futureOffers = null;
             return;
@@ -115,7 +128,7 @@ public abstract class VillagerMixin extends AbstractVillager
     @Override
     public boolean tradeReorder$canCycleTrades() {
         return getVillagerXp() == 0
-                && getVillagerData().level() == VillagerData.MIN_VILLAGER_LEVEL
+                && getVillagerData().getLevel() == VillagerData.MIN_VILLAGER_LEVEL
                 && this.offers != null
                 && !this.offers.isEmpty();
     }
@@ -135,11 +148,32 @@ public abstract class VillagerMixin extends AbstractVillager
         // vanilla instead of replaying a stored set, so the trades are genuinely re-rolled.
         this.offers = new MerchantOffers();
         tradeReorder$futureOffers = null;
-        this.updateTrades(serverLevel);
+        this.updateTrades();
 
         // Push the refreshed current offers and regenerated future tiers to the client.
-        updateSpecialPrices(player);
+        tradeReorder$updateSpecialPrices(player);
         tradeReorder$sendFutureOffers(player);
+    }
+
+    /**
+     * What 26.3's {@code Villager.updateSpecialPrices(Player)} does: reset and
+     * re-apply the player's special prices, refresh the open merchant menu's sell
+     * slot, and send the offers to the trading player. This version's
+     * updateSpecialPrices only applies the prices, so the other steps are spelled out.
+     */
+    @Unique
+    private void tradeReorder$updateSpecialPrices(Player player) {
+        resetSpecialPrices();
+        updateSpecialPrices(player);
+        MerchantOffers offers = this.getOffers();
+        Player tradingPlayer = this.getTradingPlayer();
+        if (tradingPlayer != null && !offers.isEmpty()) {
+            if (tradingPlayer.containerMenu instanceof MerchantMenu menu) {
+                ((MerchantMenuTraderAccessor) menu).tradeReorder$getTradeContainer().updateSellItem();
+            }
+            tradingPlayer.sendMerchantOffers(tradingPlayer.containerMenu.containerId, offers,
+                    getVillagerData().getLevel(), getVillagerXp(), this.showProgressBar(), this.canRestock());
+        }
     }
 
     @Unique
@@ -155,7 +189,7 @@ public abstract class VillagerMixin extends AbstractVillager
         }
 
         List<MerchantOffers> generated = new ArrayList<>();
-        int level = getVillagerData().level();
+        int level = getVillagerData().getLevel();
         while (level++ < 5) {
             MerchantOffers offers = tradeReorder$generateOffersForLevel(serverLevel, level);
             if (!offers.isEmpty()) {
@@ -166,13 +200,24 @@ public abstract class VillagerMixin extends AbstractVillager
         tradeReorder$trimFutureOffers();
     }
 
+    /** Same lookup as this version's vanilla {@code Villager.updateTrades()}, for another level. */
     @Unique
     private MerchantOffers tradeReorder$generateOffersForLevel(ServerLevel serverLevel, int level) {
         MerchantOffers generated = new MerchantOffers();
-        VillagerData data = getVillagerData().withLevel(level);
-        ResourceKey<TradeSet> trades = data.profession().value().getTrades(data.level());
-        if (trades != null) {
-            this.addOffersFromTradeSet(serverLevel, generated, trades);
+        VillagerData data = getVillagerData().setLevel(level);
+        Int2ObjectMap<VillagerTrades.ItemListing[]> trades;
+        if (serverLevel.enabledFeatures().contains(FeatureFlags.TRADE_REBALANCE)) {
+            Int2ObjectMap<VillagerTrades.ItemListing[]> experimental =
+                    VillagerTrades.EXPERIMENTAL_TRADES.get(data.getProfession());
+            trades = experimental != null ? experimental : VillagerTrades.TRADES.get(data.getProfession());
+        } else {
+            trades = VillagerTrades.TRADES.get(data.getProfession());
+        }
+        if (trades != null && !trades.isEmpty()) {
+            VillagerTrades.ItemListing[] listings = trades.get(data.getLevel());
+            if (listings != null) {
+                this.addOffersFromItemListings(generated, listings, 2);
+            }
         }
         return generated;
     }
@@ -182,7 +227,7 @@ public abstract class VillagerMixin extends AbstractVillager
         if (tradeReorder$futureOffers == null) {
             return;
         }
-        int requiredSets = Math.max(0, 5 - getVillagerData().level());
+        int requiredSets = Math.max(0, 5 - getVillagerData().getLevel());
         while (tradeReorder$futureOffers.size() > requiredSets) {
             tradeReorder$futureOffers.remove(0);
         }
