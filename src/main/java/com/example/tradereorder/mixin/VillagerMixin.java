@@ -13,6 +13,7 @@ import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerData;
 import net.minecraft.world.entity.npc.villager.VillagerDataHolder;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.item.trading.TradeSet;
 import net.minecraft.world.level.Level;
@@ -37,8 +38,10 @@ public abstract class VillagerMixin extends AbstractVillager
 
     @Shadow public abstract int getVillagerXp();
 
-    // In 26.3, updating special prices also refreshes the open merchant menu
-    // and sends its offers to the trading player.
+    @Shadow private void resetSpecialPrices() {
+        throw new AssertionError("shadow");
+    }
+
     @Shadow private void updateSpecialPrices(Player player) {
         throw new AssertionError("shadow");
     }
@@ -138,8 +141,29 @@ public abstract class VillagerMixin extends AbstractVillager
         this.updateTrades(serverLevel);
 
         // Push the refreshed current offers and regenerated future tiers to the client.
-        updateSpecialPrices(player);
+        tradeReorder$updateSpecialPrices(player);
         tradeReorder$sendFutureOffers(player);
+    }
+
+    /**
+     * What 26.3's {@code Villager.updateSpecialPrices(Player)} does: reset and
+     * re-apply the player's special prices, refresh the open merchant menu's sell
+     * slot, and send the offers to the trading player. This version's
+     * updateSpecialPrices only applies the prices, so the other steps are spelled out.
+     */
+    @Unique
+    private void tradeReorder$updateSpecialPrices(Player player) {
+        resetSpecialPrices();
+        updateSpecialPrices(player);
+        MerchantOffers offers = this.getOffers();
+        Player tradingPlayer = this.getTradingPlayer();
+        if (tradingPlayer != null && !offers.isEmpty()) {
+            if (tradingPlayer.containerMenu instanceof MerchantMenu menu) {
+                ((MerchantMenuTraderAccessor) menu).tradeReorder$getTradeContainer().updateSellItem();
+            }
+            tradingPlayer.sendMerchantOffers(tradingPlayer.containerMenu.containerId, offers,
+                    getVillagerData().level(), getVillagerXp(), this.showProgressBar(), this.canRestock());
+        }
     }
 
     @Unique

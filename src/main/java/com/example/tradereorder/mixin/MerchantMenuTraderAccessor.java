@@ -1,5 +1,6 @@
 package com.example.tradereorder.mixin;
 
+import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.trading.Merchant;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,4 +15,9 @@ public interface MerchantMenuTraderAccessor {
 
     @Accessor("trader")
     Merchant tradeReorder$getTrader();
+
+    // 26.3 has MerchantMenu.updateSellItem(), which just calls
+    // tradeContainer.updateSellItem(); 26.1 needs the container itself.
+    @Accessor("tradeContainer")
+    MerchantContainer tradeReorder$getTradeContainer();
 }
