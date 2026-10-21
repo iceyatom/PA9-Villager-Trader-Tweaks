@@ -6,13 +6,13 @@ import com.example.tradereorder.ClientMerchantMenuDuck;
 import com.example.tradereorder.TradeKeys;
 import com.example.tradereorder.network.ServerboundCycleTradesPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.npc.villager.VillagerData;
+import net.minecraft.world.entity.npc.VillagerData;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.trading.MerchantOffer;
@@ -413,18 +413,19 @@ public abstract class MerchantScreenMixin
         }
     }
 
-    // Target extractContents (declared on MerchantScreen itself, runs every
-    // frame). extractRenderState is declared on the parent AbstractContainerScreen,
-    // which a MerchantScreen mixin cannot target directly.
-    @Inject(method = "extractContents", at = @At("HEAD"))
-    private void tradeReorder$beforeExtract(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+    // Target renderContents (declared on MerchantScreen itself, runs every frame);
+    // it is this version's counterpart of 26.x's extractContents. render is
+    // declared on the parent AbstractContainerScreen, which a MerchantScreen mixin
+    // cannot target directly.
+    @Inject(method = "renderContents", at = @At("HEAD"))
+    private void tradeReorder$beforeExtract(GuiGraphics graphics, int mouseX, int mouseY,
                                             float delta, CallbackInfo ci) {
         ClientMerchantMenuDuck.of(this.menu).tradeReorder$setShowAllTrades(
                 tradeReorder$mode == Mode.VIEW_ALL);
     }
 
-    @Inject(method = "extractContents", at = @At("TAIL"))
-    private void tradeReorder$onExtract(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+    @Inject(method = "renderContents", at = @At("TAIL"))
+    private void tradeReorder$onExtract(GuiGraphics graphics, int mouseX, int mouseY,
                                         float delta, CallbackInfo ci) {
         tradeReorder$tryInit();
 
@@ -444,7 +445,7 @@ public abstract class MerchantScreenMixin
             String label = tradeReorder$selectedRow >= 0
                     ? ("#" + (tradeReorder$selectedRow + 1) + "/" + size)
                     : ("/" + size);
-            graphics.text(this.font, label, this.leftPos - 46, this.topPos + 64,
+            graphics.drawString(this.font, label, this.leftPos - 46, this.topPos + 64,
                     0xFFFFFFFF, true);
         }
     }
