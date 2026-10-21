@@ -13,7 +13,7 @@ public final class MixinSmokeTest implements PreLaunchEntrypoint {
             // applies and validates shadows, accessors and injections on load.
             for (String name : new String[] {
                     "net.minecraft.world.item.trading.Merchant",
-                    "net.minecraft.world.entity.npc.villager.Villager",
+                    "net.minecraft.world.entity.npc.Villager",
                     "net.minecraft.world.inventory.MerchantMenu",
                     "net.minecraft.client.gui.screens.inventory.MerchantScreen"
             }) {

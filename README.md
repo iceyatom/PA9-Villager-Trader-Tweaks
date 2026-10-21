@@ -1,4 +1,4 @@
-# Trade Reorder — Minecraft 26.3 (Fabric)
+# Trade Reorder — Minecraft 1.19.3–1.19.4 (Fabric)
 
 A mod for the villager trading screen that lets you reorder trades per
 villager, restore that order on every subsequent visit, and view the exact
@@ -47,12 +47,12 @@ or re-leveling trades — unrecognised trades are appended at the end.
 
 ## Requirements to build
 
-- **JDK 25** — Minecraft 26.3 requires Java 25 for both compilation and the
-  Gradle toolchain.
+- **JDK 17** for the Gradle Java toolchain (Minecraft 1.19.3–1.19.4 requires Java 17), plus
+  **JDK 21 or newer** to run Gradle itself (JDK 25 works).
 - **Gradle 9.6+** on your `PATH` — needed once to generate the wrapper, then
   `gradlew` is self-contained.
 - Internet access to `maven.fabricmc.net` and Mojang's servers on first build
-  (Loom downloads the 26.3 client jar).
+  (Loom downloads the 1.19.3 client jar).
 - IntelliJ IDEA **2025.3+** if developing (earlier versions don't resolve
   mixins correctly for this MC version).
 
@@ -64,8 +64,8 @@ or re-leveling trades — unrecognised trades are appended at the end.
 # 1. Unzip and enter the project folder.
 cd trade-reorder
 
-# 2. Confirm JDK 25 is active.
-java -version   # must report 25
+# 2. Confirm a JDK 21+ is active for Gradle (JDK 17 must also be installed).
+java -version
 
 # 3. Generate the Gradle wrapper (once only).
 gradle wrapper --gradle-version 9.6.0
@@ -75,8 +75,8 @@ gradlew.bat build        # Windows
 ./gradlew build          # macOS / Linux
 
 # Output:
-#   build/libs/villager-trade-tweaks-26.3-1.2.2.jar          ← install this
-#   build/libs/villager-trade-tweaks-26.3-1.2.2-sources.jar  ← ignore
+#   build/libs/villager-trade-tweaks-1.19.3-1.2.2.jar          ← install this
+#   build/libs/villager-trade-tweaks-1.19.3-1.2.2-sources.jar  ← ignore
 ```
 
 On subsequent rebuilds after source changes, step 3 is not needed — run
@@ -91,11 +91,12 @@ Java compilation alone misses. In-game interaction still needs manual testing.
 
 ## Install
 
-1. Install **Fabric Loader 0.19.5** for Minecraft 26.3 via the Fabric
+1. Install **Fabric Loader** for your Minecraft version (1.19.3–1.19.4) via the Fabric
    installer.
-2. Place **Fabric API 0.160.6+26.3** in `.minecraft/mods/`.
-3. Place `build/libs/villager-trade-tweaks-26.3-1.2.2.jar` in `.minecraft/mods/`.
-4. Launch the `fabric-loader-26.3` profile.
+2. Place the **Fabric API** build for your Minecraft version in `.minecraft/mods/`
+   (this jar was built against Fabric API 0.76.1+1.19.3).
+3. Place `build/libs/villager-trade-tweaks-1.19.3-1.2.2.jar` in `.minecraft/mods/`.
+4. Launch the matching `fabric-loader-<version>` profile.
 
 ---
 

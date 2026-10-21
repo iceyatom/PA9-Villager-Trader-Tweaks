@@ -28,9 +28,9 @@
   ],
   "accessWidener": "trade-reorder.classtweaker",
   "depends": {
-    "fabricloader": ">=0.19.5",
-    "minecraft": "~26.3",
-    "java": ">=25",
-    "fabric-api": "*"
+    "fabricloader": ">=0.14.10",
+    "minecraft": ">=1.19.3 <1.20-",
+    "java": ">=17",
+    "fabric": "*"
   }
 }
