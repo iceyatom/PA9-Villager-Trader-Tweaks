@@ -1,4 +1,4 @@
-classTweaker	v1	official
+accessWidener	v2	named
 # Make the inner trade-button class accessible so the mixin can reference its
 # type and read the (public) tradeOfferButtons array for click hit-testing.
 # NOTE: we deliberately do NOT make TradeOfferButton.index mutable/accessible —

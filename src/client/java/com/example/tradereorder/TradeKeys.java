@@ -3,7 +3,7 @@ package com.example.tradereorder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.server.IntegratedServer;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.trading.Merchant;
@@ -104,8 +104,8 @@ public final class TradeKeys {
         IntegratedServer sp = mc.getSingleplayerServer();
         if (sp != null) {
             try {
-                java.nio.file.Path dir = sp.getServerDirectory();
-                java.nio.file.Path name = dir == null ? null : dir.getFileName();
+                java.io.File dir = sp.getServerDirectory();   // a File before 1.20.5
+                java.nio.file.Path name = dir == null ? null : dir.toPath().getFileName();
                 if (name != null) {
                     return "sp:" + name;
                 }
@@ -140,7 +140,7 @@ public final class TradeKeys {
         // getKey(...) returns the registry id; its string form is "namespace:path".
         // Using String.valueOf avoids depending on the id class name, which the
         // 26.1 registry refactor may have changed.
-        String id = String.valueOf(BuiltInRegistries.ITEM.getKey(s.getItem()));
+        String id = String.valueOf(Registry.ITEM.getKey(s.getItem()));
         return id + "x" + s.getCount();
     }
 }

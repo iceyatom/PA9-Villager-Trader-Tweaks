@@ -6,13 +6,13 @@ import com.example.tradereorder.ClientMerchantMenuDuck;
 import com.example.tradereorder.TradeKeys;
 import com.example.tradereorder.network.ServerboundCycleTradesPayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.npc.villager.VillagerData;
+import net.minecraft.world.entity.npc.VillagerData;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.trading.MerchantOffer;
@@ -97,7 +97,8 @@ public abstract class MerchantScreenMixin
         tradeReorder$initSignature = null;
         tradeReorder$original.clear();
 
-        Button toggle = Button.builder(tradeReorder$label(), b -> {
+        // Before 1.19.3 there is no Button.builder: the constructor takes the bounds.
+        Button toggle = new Button(this.leftPos + 5, this.topPos - 22, 116, 18, tradeReorder$label(), b -> {
             tradeReorder$cycleMode();
             b.setMessage(tradeReorder$label());
             if (tradeReorder$mode == Mode.REORDER && tradeReorder$selectedRow < 0
@@ -105,26 +106,26 @@ public abstract class MerchantScreenMixin
                 tradeReorder$selectedRow = 0;
             }
             tradeReorder$refresh();
-        }).bounds(this.leftPos + 5, this.topPos - 22, 116, 18).build();
+        });
         this.addRenderableWidget(toggle);
 
-        Button reset = Button.builder(Component.literal("Reset"), b -> tradeReorder$reset())
-                .bounds(this.leftPos + 123, this.topPos - 22, 48, 18).build();
+        Button reset = new Button(this.leftPos + 123, this.topPos - 22, 48, 18,
+                Component.literal("Reset"), b -> tradeReorder$reset());
         this.addRenderableWidget(reset);
 
         int bx = this.leftPos - 46;
         int by = this.topPos + 18;
-        tradeReorder$upButton = Button.builder(Component.literal("Up"), b -> tradeReorder$move(-1))
-                .bounds(bx, by, 42, 20).build();
-        tradeReorder$downButton = Button.builder(Component.literal("Down"), b -> tradeReorder$move(1))
-                .bounds(bx, by + 22, 42, 20).build();
+        tradeReorder$upButton = new Button(bx, by, 42, 20,
+                Component.literal("Up"), b -> tradeReorder$move(-1));
+        tradeReorder$downButton = new Button(bx, by + 22, 42, 20,
+                Component.literal("Down"), b -> tradeReorder$move(1));
         this.addRenderableWidget(tradeReorder$upButton);
         this.addRenderableWidget(tradeReorder$downButton);
 
         // Shares the left-side slot with Up/Down: only shown in View All, while
         // Up/Down are only shown in Reorder, so the two never overlap.
-        tradeReorder$cycleButton = Button.builder(Component.literal("Cycle"), b -> tradeReorder$cycle())
-                .bounds(bx, by, 42, 20).build();
+        tradeReorder$cycleButton = new Button(bx, by, 42, 20,
+                Component.literal("Cycle"), b -> tradeReorder$cycle());
         this.addRenderableWidget(tradeReorder$cycleButton);
         tradeReorder$refresh();
     }
@@ -276,7 +277,7 @@ public abstract class MerchantScreenMixin
         if (tradeReorder$mode != Mode.VIEW_ALL || !tradeReorder$canCycle()) {
             return;
         }
-        ClientPlayNetworking.send(new ServerboundCycleTradesPayload());
+        ClientPlayNetworking.send(ServerboundCycleTradesPayload.PACKET_ID, PacketByteBufs.empty());
     }
 
     @Unique
@@ -385,21 +386,21 @@ public abstract class MerchantScreenMixin
      * never accidentally performs a trade.
      */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void tradeReorder$onClick(MouseButtonEvent event, boolean doubleClick,
+    private void tradeReorder$onClick(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
-        if (event.button() != InputConstants.MOUSE_BUTTON_LEFT || this.tradeOfferButtons == null
+        if (button != InputConstants.MOUSE_BUTTON_LEFT || this.tradeOfferButtons == null
                 || tradeReorder$mode == Mode.TRADE) {
             return;
         }
-        double mx = event.x();
-        double my = event.y();
+        double mx = mouseX;
+        double my = mouseY;
         for (int i = 0; i < this.tradeOfferButtons.length; i++) {
             MerchantScreen.TradeOfferButton btn = this.tradeOfferButtons[i];
             if (btn == null || !btn.visible) {
                 continue;
             }
-            if (mx >= btn.getX() && mx < btn.getX() + btn.getWidth()
-                    && my >= btn.getY() && my < btn.getY() + btn.getHeight()) {
+            if (mx >= btn.x && mx < btn.x + btn.getWidth()
+                    && my >= btn.y && my < btn.y + btn.getHeight()) {
                 int row = this.scrollOff + i;
                 if (tradeReorder$mode == Mode.REORDER && row >= 0 && row < tradeReorder$count()) {
                     tradeReorder$selectedRow = row;
@@ -413,18 +414,17 @@ public abstract class MerchantScreenMixin
         }
     }
 
-    // Target extractContents (declared on MerchantScreen itself, runs every
-    // frame). extractRenderState is declared on the parent AbstractContainerScreen,
-    // which a MerchantScreen mixin cannot target directly.
-    @Inject(method = "extractContents", at = @At("HEAD"))
-    private void tradeReorder$beforeExtract(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+    // Target render (declared on MerchantScreen itself, runs every frame); it is
+    // this version's counterpart of 26.x's extractContents.
+    @Inject(method = "render", at = @At("HEAD"))
+    private void tradeReorder$beforeExtract(PoseStack poseStack, int mouseX, int mouseY,
                                             float delta, CallbackInfo ci) {
         ClientMerchantMenuDuck.of(this.menu).tradeReorder$setShowAllTrades(
                 tradeReorder$mode == Mode.VIEW_ALL);
     }
 
-    @Inject(method = "extractContents", at = @At("TAIL"))
-    private void tradeReorder$onExtract(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+    @Inject(method = "render", at = @At("TAIL"))
+    private void tradeReorder$onExtract(PoseStack poseStack, int mouseX, int mouseY,
                                         float delta, CallbackInfo ci) {
         tradeReorder$tryInit();
 
@@ -444,8 +444,8 @@ public abstract class MerchantScreenMixin
             String label = tradeReorder$selectedRow >= 0
                     ? ("#" + (tradeReorder$selectedRow + 1) + "/" + size)
                     : ("/" + size);
-            graphics.text(this.font, label, this.leftPos - 46, this.topPos + 64,
-                    0xFFFFFFFF, true);
+            this.font.drawShadow(poseStack, label, this.leftPos - 46, this.topPos + 64,
+                    0xFFFFFFFF);
         }
     }
 

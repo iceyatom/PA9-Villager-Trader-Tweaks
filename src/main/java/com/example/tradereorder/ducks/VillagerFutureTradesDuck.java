@@ -1,7 +1,7 @@
 package com.example.tradereorder.ducks;
 
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 import java.util.Optional;
